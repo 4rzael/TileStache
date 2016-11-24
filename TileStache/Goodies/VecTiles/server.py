@@ -175,7 +175,7 @@ class Provider:
             return EmptyResponse(bounds)
         
         if query not in self.columns:
-            self.columns[query] = query_columns(self.dbinfo, self.srid, query, bounds)
+            self.columns[query] = query_columns(self.dbinfo, self.srid, query, bounds, coord.zoom)
         
         tolerance = self.simplify * tolerances[coord.zoom] if coord.zoom < self.simplify_until else None
         
@@ -267,8 +267,8 @@ class Response:
         self.clip = clip
         
         bbox = 'ST_MakeBox2D(ST_MakePoint(%.2f, %.2f), ST_MakePoint(%.2f, %.2f))' % bounds
-        geo_query = build_query(srid, subquery, columns, bbox, tolerance, True, clip)
-        merc_query = build_query(srid, subquery, columns, bbox, tolerance, False, clip)
+        geo_query = build_query(srid, subquery, columns, bbox, tolerance, True, clip, zoom)
+        merc_query = build_query(srid, subquery, columns, bbox, tolerance, False, clip, zoom)
         self.query = dict(TopoJSON=geo_query, JSON=geo_query, MVT=merc_query)
     
     def save(self, out, format):
@@ -352,7 +352,7 @@ class MultiResponse:
         else:
             raise ValueError(format)
 
-def query_columns(dbinfo, srid, subquery, bounds):
+def query_columns(dbinfo, srid, subquery, bounds, zoom):
     ''' Get information about the columns returned for a subquery.
     '''
     with Connection(dbinfo) as db:
@@ -363,8 +363,8 @@ def query_columns(dbinfo, srid, subquery, bounds):
             bbox = 'ST_MakeBox2D(ST_MakePoint(%f, %f), ST_MakePoint(%f, %f))' % bounds
             bbox = 'ST_SetSRID(%s, %d)' % (bbox, srid)
         
-            query = subquery.replace('!bbox!', bbox)
-        
+            query = subquery.replace('!bbox!', bbox).replace('!zoom!', str(zoom))
+
             db.execute(query + '\n LIMIT 1') # newline is important here, to break out of comments.
             row = db.fetchone()
             
@@ -382,7 +382,7 @@ def query_columns(dbinfo, srid, subquery, bounds):
             column_names = set(row.keys())
             return column_names
         
-def build_query(srid, subquery, subcolumns, bbox, tolerance, is_geo, is_clipped):
+def build_query(srid, subquery, subcolumns, bbox, tolerance, is_geo, is_clipped, zoom):
     ''' Build and return an PostGIS query.
     '''
     bbox = 'ST_SetSRID(%s, %d)' % (bbox, srid)
@@ -397,7 +397,7 @@ def build_query(srid, subquery, subcolumns, bbox, tolerance, is_geo, is_clipped)
     if is_geo:
         geom = 'ST_Transform(%s, 4326)' % geom
     
-    subquery = subquery.replace('!bbox!', bbox)
+    subquery = subquery.replace('!bbox!', bbox).replace('!zoom!', str(zoom))
     columns = ['q."%s"' % c for c in subcolumns if c not in ('__geometry__', )]
     
     if '__geometry__' not in subcolumns:

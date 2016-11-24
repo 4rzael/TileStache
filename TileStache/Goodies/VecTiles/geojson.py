@@ -1,7 +1,8 @@
 from re import compile
 from math import pi, log, tan, ceil
 
-import json
+try: import simplejson as json
+except ImportError: import json
 
 from shapely.wkb import loads
 from shapely.geometry import asShape
