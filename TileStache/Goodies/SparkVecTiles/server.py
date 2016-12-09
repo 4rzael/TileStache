@@ -89,7 +89,7 @@ class Response:
         '''
         '''
         # TODO: Use the real hex_size
-        gp_res = get_hexagons(self.gp_dataframe, self.bounds, hex_size=0.1)
+        gp_res = get_hexagons(self.gp_dataframe, self.bounds, hex_size=float(100) / pow(2, self.zoom))
         features = [(x[0], {'value': x[1]}) for x in gp_res.values]
 
         if format == 'JSON':
