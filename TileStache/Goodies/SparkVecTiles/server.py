@@ -18,10 +18,9 @@ from os.path import exists
 from . import geojson, topojson
 from ...Geography import SphericalMercator
 from ...Config import loadClassPath
-# from ....TODO import parquet_to_gpd, return_tile
+from upp.processing.map_dataset import *
+from upp.model.spark_adapter import SparkAdapter
 from ModestMaps.Core import Point
-
-tolerances = [6378137 * 2 * pi / (2 ** (zoom + 8)) for zoom in range(20)]
 
 class Provider:
     ''' VecTiles provider for PostGIS data sources.
@@ -37,7 +36,7 @@ class Provider:
             "class": "TileStache.Goodies.SparkVecTiles:Provider",
             "kwargs":
             {
-                "parquet": "../../../parquet"
+                "dataset": "trees"
             }
           }
 
@@ -46,11 +45,14 @@ class Provider:
         '''
         '''
         self.layer = layer
-        self.parquet = kwargs['parquet']
-        print self.parquet
+        print layer
+        self.dataset = kwargs['dataset']
+        print self.dataset
+
 
         # TODO: init spark, transform the parquet to a geopandas dataframe
-        # self.gp_dataframe = parquet_to_gpd(parquet)
+        self.ts_spark = SparkAdapter('TileStache')
+        self.gp_dataframe = get_map_dataset(self.ts_spark, dataset_name=self.dataset)
 
     def renderTile(self, width, height, srs, coord):
         ''' Render a single tile, return a Response instance.
@@ -81,17 +83,15 @@ class Response:
     def __init__(self, gp_dataframe, bounds):
         self.gp_dataframe = gp_dataframe
         self.bounds = bounds
-        self.zoom = zoom
-        self.clip = clip
         
     def save(self, out, format):
         '''
         '''
-        # gp_res = return_tile(self.gp_dataframe, self.bounds, self.zoom, self.clip)
-        out = []
+        gp_res = get_hexagons(self.gp_dataframe, self.bounds, hex_size=0.1)
+        print gp_res
 
         if format == 'JSON':
-            geojson.encode(out, features, self.zoom, self.clip)
+            geojson.encode(out, features, self.zoom, self.hex_size)
         
         elif format == 'TopoJSON':
             ll = SphericalMercator().projLocation(Point(*self.bounds[0:2]))
