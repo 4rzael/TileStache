@@ -63,7 +63,7 @@ class Provider:
         ur = self.layer.projection.coordinateProj(coord.right())
         bounds = ll.x, ll.y, ur.x, ur.y
 
-        return Response(self.gp_dataframe, bounds)
+        return Response(self.gp_dataframe, bounds, coord.zoom)
 
     def getTypeByExtension(self, extension):
         ''' Get mime-type and format by file extension, one of "json" or "topojson".
@@ -80,23 +80,25 @@ class Provider:
 class Response:
     '''
     '''
-    def __init__(self, gp_dataframe, bounds):
+    def __init__(self, gp_dataframe, bounds, zoom):
+        self.zoom = zoom
         self.gp_dataframe = gp_dataframe
         self.bounds = bounds
         
     def save(self, out, format):
         '''
         '''
+        # TODO: Use the real hex_size
         gp_res = get_hexagons(self.gp_dataframe, self.bounds, hex_size=0.1)
-        print gp_res
+        features = [(x[0], {'value': x[1]}) for x in gp_res.values]
 
         if format == 'JSON':
-            geojson.encode(out, features, self.zoom, self.hex_size)
+            geojson.encode(out, features, self.zoom, False)
         
         elif format == 'TopoJSON':
             ll = SphericalMercator().projLocation(Point(*self.bounds[0:2]))
             ur = SphericalMercator().projLocation(Point(*self.bounds[2:4]))
-            topojson.encode(out, features, (ll.lon, ll.lat, ur.lon, ur.lat), self.clip)
+            topojson.encode(out, features, (ll.lon, ll.lat, ur.lon, ur.lat), False)
 
         else:
             raise ValueError(format)
@@ -104,7 +106,8 @@ class Response:
 class EmptyResponse:
     ''' Simple empty response renders valid MVT or GeoJSON with no features.
     '''
-    def __init__(self, bounds):
+    def __init__(self, bounds, zoom):
+        self.zoom = zoom
         self.bounds = bounds
     
     def save(self, out, format):
